@@ -1,0 +1,29 @@
+name: bench-linux
+on: [push, workflow_dispatch]
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0"
+      - name: Build each ref
+        run: |
+          build() {
+            git worktree add -q "builds/$1" "$2"
+            (cd "builds/$1" && bundle install --quiet && bundle exec rake compile >/dev/null)
+          }
+          git fetch -q origin float-to-d-fast-path string-parse-without-temporary-string
+          build v3.3.1 v3.3.1
+          build master 4d6f284^
+          build float-to-d origin/float-to-d-fast-path
+          build parse origin/string-parse-without-temporary-string
+      - run: ruby -v && ldd "$(ruby -e 'print RbConfig.ruby')" | grep -iE "malloc|libc" || true
+      - run: ruby bench-linux/compare.rb v3.3.1 master float-to-d parse | tee -a "$GITHUB_STEP_SUMMARY"
